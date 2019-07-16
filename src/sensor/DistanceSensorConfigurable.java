@@ -24,7 +24,7 @@ public class DistanceSensorConfigurable implements ConfigurableComponent {
     private List<KuraGPIOPin> openedPins = new ArrayList<>();
     
 	private static final Logger s_logger = LoggerFactory.getLogger(DistanceSensorConfigurable.class);
-    private static final String APP_ID = "org.eclipse.kura.example.configurable.ConfigurableExample";
+    private static final String APP_ID = "edit.DistanceSensor";
     private Map<String, Object> properties;
     
     public void setGPIOService(GPIOService gpioService) {
@@ -36,13 +36,7 @@ public class DistanceSensorConfigurable implements ConfigurableComponent {
     }
 
     protected void activate(ComponentContext componentContext) {
-        s_logger.info("Bundle " + APP_ID + " has started!");
         s_logger.info("Bundle " + APP_ID + " has started!\nWORING!\nWORKING\nWORKING");
-    }
-
-    protected void activate(ComponentContext componentContext, Map<String, Object> properties) {
-        s_logger.info("Bundle " + APP_ID + " has started with config!");
-        updated(properties);
     }
 
     protected void deactivate(ComponentContext componentContext) {
