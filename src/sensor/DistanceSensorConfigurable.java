@@ -2,18 +2,25 @@ package sensor;
 
 
 import java.io.IOException;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import org.eclipse.kura.configuration.ConfigurableComponent;
 import org.eclipse.kura.gpio.GPIOService;
+import org.eclipse.kura.gpio.KuraClosedDeviceException;
 import org.eclipse.kura.gpio.KuraGPIODirection;
 import org.eclipse.kura.gpio.KuraGPIOMode;
 import org.eclipse.kura.gpio.KuraGPIOPin;
 import org.eclipse.kura.gpio.KuraGPIOTrigger;
+import org.eclipse.kura.gpio.KuraUnavailableDeviceException;
 import org.osgi.service.component.ComponentContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,11 +34,17 @@ public class DistanceSensorConfigurable implements ConfigurableComponent {
     private static final String APP_ID = "edit.DistanceSensor";
     private Map<String, Object> properties;
     
+    private ScheduledFuture<?> blinkTask = null;
+    private ScheduledFuture<?> pollTask = null;
+    
+    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+    private boolean value;
+    
     public void setGPIOService(GPIOService gpioService) {
         this.gpioService = gpioService;
     }
 
-    public void unsetBluetoothLeService(GPIOService gpioService) {
+    public void unsetGPIOService(GPIOService gpioService) {
         this.gpioService = null;
     }
 
@@ -41,10 +54,13 @@ public class DistanceSensorConfigurable implements ConfigurableComponent {
 
     protected void deactivate(ComponentContext componentContext) {
         s_logger.info("Bundle " + APP_ID + " has stopped!");
+        releasePins();
     }
 
     public void updated(Map<String, Object> properties) {
         this.properties = properties;
+        releasePins();
+        openedPins.clear();
         if(properties != null && !properties.isEmpty()) {
             Iterator<Entry<String, Object>> it = properties.entrySet().iterator();
             while (it.hasNext()) {
@@ -63,6 +79,35 @@ public class DistanceSensorConfigurable implements ConfigurableComponent {
             s_logger.info("______________________________");
             acquirePins();
         }
+    }
+    
+    private void readDistance() {
+    	for(int i = 0; i < openedPins.size(); i++) {
+    		if(openedPins.get(i).getIndex() % 2 == 0) {
+    			KuraGPIOPin echo = openedPins.get(i);
+    			KuraGPIOPin trigger = openedPins.get(i + 1);
+    			try {
+    				trigger.setValue(false);
+					Thread.sleep(50);
+					trigger.setValue(true);
+					Thread.sleep(1);
+					trigger.setValue(false);
+					long start = 0;
+					long end = 0;
+					while(echo.getValue() == false) {
+						start = System.currentTimeMillis();
+					}
+					while(echo.getValue() == true) {
+						end = System.currentTimeMillis();
+					}
+					long duration = end - start;
+					double distance = Math.ceil((duration / 1000000000.0) * 17150);
+					s_logger.info("Measured distance: " + distance);
+				} catch (KuraUnavailableDeviceException | KuraClosedDeviceException | IOException | InterruptedException e) {
+					e.printStackTrace();
+				}
+    		}
+    	}
     }
     
     private void acquirePins() {
@@ -92,8 +137,8 @@ public class DistanceSensorConfigurable implements ConfigurableComponent {
                 KuraGPIOPin p = getPin(pins[i], getPinDirection(directions[i]), getPinMode(modes[i]),
                         getPinTrigger(triggers[i]));
                 if (p != null) {
+                	p.open();
                 	openedPins.add(p);
-                    p.open();
                     s_logger.info("GPIO pin {} acquired", pins[i]);
                 } else {
                 	s_logger.info("GPIO pin {} not found", pins[i]);
@@ -118,6 +163,17 @@ public class DistanceSensorConfigurable implements ConfigurableComponent {
             pin = this.gpioService.getPinByName(resource, pinDirection, pinMode, pinTrigger);
         }
         return pin;
+    }
+    
+    private void releasePins() {
+    	openedPins.stream().forEach( pin -> {
+    		try {
+    			s_logger.warn("Closing pin {}", pin);
+    			pin.close();
+    		} catch (IOException e) {
+    			s_logger.warn("Cannot close pin");
+    		}
+    	});
     }
     
     private KuraGPIODirection getPinDirection(int direction) {
@@ -160,6 +216,16 @@ public class DistanceSensorConfigurable implements ConfigurableComponent {
             return KuraGPIOTrigger.FALLING_EDGE;
         default:
             return KuraGPIOTrigger.NONE;
+        }
+    }
+    
+    private void logException(KuraGPIOPin pin, Exception e) {
+        if (e instanceof KuraUnavailableDeviceException) {
+            s_logger.warn("GPIO pin {} is not available for export.", pin);
+        } else if (e instanceof KuraClosedDeviceException) {
+        	s_logger.warn("GPIO pin {} has been closed.", pin);
+        } else {
+        	s_logger.error("I/O Error occurred!", e);
         }
     }
 }
