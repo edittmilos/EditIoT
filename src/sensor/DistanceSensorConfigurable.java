@@ -21,8 +21,7 @@ import org.slf4j.LoggerFactory;
 public class DistanceSensorConfigurable implements ConfigurableComponent {
 
 	private GPIOService gpioService;
-	private List<KuraGPIOPin> acquiredOutputPins = new ArrayList<>();
-    private List<KuraGPIOPin> acquiredInputPins = new ArrayList<>();
+    private List<KuraGPIOPin> openedPins = new ArrayList<>();
     
 	private static final Logger s_logger = LoggerFactory.getLogger(DistanceSensorConfigurable.class);
     private static final String APP_ID = "org.eclipse.kura.example.configurable.ConfigurableExample";
@@ -99,13 +98,9 @@ public class DistanceSensorConfigurable implements ConfigurableComponent {
                 KuraGPIOPin p = getPin(pins[i], getPinDirection(directions[i]), getPinMode(modes[i]),
                         getPinTrigger(triggers[i]));
                 if (p != null) {
+                	openedPins.add(p);
                     p.open();
                     s_logger.info("GPIO pin {} acquired", pins[i]);
-                    if (p.getDirection() == KuraGPIODirection.OUTPUT) {
-                        acquiredOutputPins.add(p);
-                    } else {
-                        acquiredInputPins.add(p);
-                    }
                 } else {
                 	s_logger.info("GPIO pin {} not found", pins[i]);
                 }
