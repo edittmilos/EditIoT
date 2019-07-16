@@ -4,5 +4,11 @@
    <service>
       <provide interface="org.eclipse.kura.configuration.ConfigurableComponent"/>
    </service>
+   <reference bind="setGPIOService"
+              cardinality="1..1"
+              interface="org.eclipse.kura.gpio.GPIOService"
+              name="GPIOService"
+              policy="static"
+              unbind="unsetGPIOService"/>
    <property name="service.pid" type="String" value="sensor.DistanceSensorConfigurable"/>
 </scr:component>

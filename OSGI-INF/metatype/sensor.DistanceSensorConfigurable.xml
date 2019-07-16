@@ -4,32 +4,57 @@
         name="ConfigurableExample"
         description="This is a sample metatype file for a simple configurable component">
 
-        <AD id="param1.string"
-            name="param1.string"
+        <AD id="gpio.pins"  
+            name="gpio.pins"
             type="String"
-            cardinality="0"
-            required="true"
-            default="Some Text"
-            description="String configuration parameter"/>
-
-        <AD id="param2.float"
-            name="param2.float"
-            type="Float"
-            cardinality="0"
+            cardinality="5" 
             required="false"
-            default="20.5"
-            min="5.0"
-            max="40.0"
-            description="Float configuration parameter"/>
-
-        <AD id="param3.integer"
-            name="param3.integer"
+            default=""
+            description="List of GPIO pins expressed as pin number or pin name (i.e. DOUT1, DIN1, ...)."/>
+        
+        <AD id="gpio.directions"
+            name="gpio.directions"
             type="Integer"
-            cardinality="0"
-            required="true"
-            default="2"
-            min="1"
-            description="Integer configuration parameter"/>
+            cardinality="5"
+            required="false"
+			default="3,3,3,3,3"
+            description="Pin directions">
+           <Option label="Only input" value="0"/>
+           <Option label="Only output" value="1"/>          
+           <Option label="Both, init input" value="2"/>            
+           <Option label="Both, init output" value="3"/>            
+          </AD>
+          
+          <AD id="gpio.modes"
+              name="gpio.modes"
+              type="Integer"
+              cardinality="5"
+              required="false"
+              default="-1,-1,-1,-1,-1"
+           	  description="Pin working mode">
+           	<Option label="Default" value="-1"/>
+           	<Option label="Input with Pull Down" value="2"/>          
+           	<Option label="Input with Pull Up" value="1"/>            
+           	<Option label="Open Drain Output" value="8"/>                     
+           	<Option label="Push-Pull Output" value="4"/>                     
+           	</AD>
+                    
+          <AD id="gpio.triggers"
+              name="gpio.triggers"
+              type="Integer"
+              cardinality="5"
+              required="false"
+              default="-1,-1,-1,-1,-1"
+           	  description="Input triggering mode">
+           	<Option label="Default" value="-1"/>
+           	<Option label="No trigger" value="0"/>          
+           	<Option label="Rising edge" value="2"/>            
+           	<Option label="Both edges" value="3"/>                     
+           	<Option label="Falling edge" value="1"/>                     
+<!--            	<Option label="High level" value="4"/>                      -->
+<!--            	<Option label="Low level" value="5"/>                      -->
+<!--            	<Option label="Both levels" value="6"/>                      -->
+           </AD>
     </OCD>
 
     <Designate pid="sensor.DistanceSensorConfigurable">
