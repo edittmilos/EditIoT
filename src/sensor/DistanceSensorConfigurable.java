@@ -38,6 +38,7 @@ public class DistanceSensorConfigurable implements ConfigurableComponent {
 
     protected void activate(ComponentContext componentContext) {
         s_logger.info("Bundle " + APP_ID + " has started!");
+        s_logger.info("Bundle " + APP_ID + " has started!\nWORING!\nWORKING\nWORKING");
     }
 
     protected void activate(ComponentContext componentContext, Map<String, Object> properties) {
