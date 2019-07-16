@@ -2,17 +2,18 @@ package sensor;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
 import org.eclipse.kura.configuration.ConfigurableComponent;
 import org.eclipse.kura.gpio.GPIOService;
+import org.eclipse.kura.gpio.KuraClosedDeviceException;
 import org.eclipse.kura.gpio.KuraGPIODirection;
 import org.eclipse.kura.gpio.KuraGPIOMode;
 import org.eclipse.kura.gpio.KuraGPIOPin;
 import org.eclipse.kura.gpio.KuraGPIOTrigger;
+import org.eclipse.kura.gpio.KuraUnavailableDeviceException;
 import org.osgi.service.component.ComponentContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,8 +53,37 @@ public class DistanceSensorConfigurable implements ConfigurableComponent {
 		
 		acquirePins();
 		getPins();
-
+		readDistance();
 	}
+	
+	private void readDistance() {
+    	for(int i = 0; i < openedPins.size(); i++) {
+    		if(openedPins.get(i).getIndex() % 2 == 0) {
+    			KuraGPIOPin echo = openedPins.get(i);
+    			KuraGPIOPin trigger = openedPins.get(i + 1);
+    			try {
+    				trigger.setValue(false);
+					Thread.sleep(50);
+					trigger.setValue(true);
+					Thread.sleep(1);
+					trigger.setValue(false);
+					long start = 0;
+					long end = 0;
+					while(echo.getValue() == false) {
+						start = System.currentTimeMillis();
+					}
+					while(echo.getValue() == true) {
+						end = System.currentTimeMillis();
+					}
+					long duration = end - start;
+					double distance = Math.ceil((duration / 1000.0) * 17150.0);
+					s_logger.info("Measured distance: " + distance);
+				} catch (KuraUnavailableDeviceException | KuraClosedDeviceException | IOException | InterruptedException e) {
+					e.printStackTrace();
+				}
+    		}
+    	}
+    }
 
 	private void acquirePins() {
 		if (this.gpioService != null) {
