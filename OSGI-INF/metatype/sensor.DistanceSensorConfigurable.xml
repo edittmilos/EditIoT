@@ -4,18 +4,26 @@
         name="DistanceSensor"
         description="This is a sample metatype file for a simple configurable component">
 
-        <AD id="gpio.pins"  
-            name="gpio.pins"
+        <AD id="gpio.pins1"  
+            name="gpio.pins1"
             type="String"
-            cardinality="5" 
+            cardinality="6" 
+            required="false"
+            default=""
+            description="List of GPIO pins expressed as pin number or pin name (i.e. DOUT1, DIN1, ...)."/>
+            
+        <AD id="gpio.pins2"  
+            name="gpio.pins2"
+            type="String"
+            cardinality="6" 
             required="false"
             default=""
             description="List of GPIO pins expressed as pin number or pin name (i.e. DOUT1, DIN1, ...)."/>
         
-        <AD id="gpio.directions"
-            name="gpio.directions"
+        <AD id="gpio.directions1"
+            name="gpio.directions1"
             type="Integer"
-            cardinality="5"
+            cardinality="6"
             required="false"
 			default="3,3,3,3,3"
             description="Pin directions">
@@ -25,10 +33,37 @@
            <Option label="Both, init output" value="3"/>            
           </AD>
           
-          <AD id="gpio.modes"
-              name="gpio.modes"
+          <AD id="gpio.directions2"
+            name="gpio.directions2"
+            type="Integer"
+            cardinality="6"
+            required="false"
+			default="3,3,3,3,3"
+            description="Pin directions">
+           <Option label="Only input" value="0"/>
+           <Option label="Only output" value="1"/>          
+           <Option label="Both, init input" value="2"/>            
+           <Option label="Both, init output" value="3"/>            
+          </AD>
+          
+          <AD id="gpio.modes1"
+              name="gpio.modes1"
               type="Integer"
-              cardinality="5"
+              cardinality="6"
+              required="false"
+              default="-1,-1,-1,-1,-1"
+           	  description="Pin working mode">
+           	<Option label="Default" value="-1"/>
+           	<Option label="Input with Pull Down" value="2"/>          
+           	<Option label="Input with Pull Up" value="1"/>            
+           	<Option label="Open Drain Output" value="8"/>                     
+           	<Option label="Push-Pull Output" value="4"/>                     
+           	</AD>
+           	
+           	<AD id="gpio.modes2"
+              name="gpio.modes2"
+              type="Integer"
+              cardinality="6"
               required="false"
               default="-1,-1,-1,-1,-1"
            	  description="Pin working mode">
@@ -39,10 +74,10 @@
            	<Option label="Push-Pull Output" value="4"/>                     
            	</AD>
                     
-          <AD id="gpio.triggers"
-              name="gpio.triggers"
+          <AD id="gpio.triggers1"
+              name="gpio.triggers1"
               type="Integer"
-              cardinality="5"
+              cardinality="6"
               required="false"
               default="-1,-1,-1,-1,-1"
            	  description="Input triggering mode">
@@ -55,6 +90,32 @@
 <!--            	<Option label="Low level" value="5"/>                      -->
 <!--            	<Option label="Both levels" value="6"/>                      -->
            </AD>
+           
+           <AD id="gpio.triggers2"
+              name="gpio.triggers2"
+              type="Integer"
+              cardinality="6"
+              required="false"
+              default="-1,-1,-1,-1,-1"
+           	  description="Input triggering mode">
+           	<Option label="Default" value="-1"/>
+           	<Option label="No trigger" value="0"/>          
+           	<Option label="Rising edge" value="2"/>            
+           	<Option label="Both edges" value="3"/>                     
+           	<Option label="Falling edge" value="1"/>                     
+<!--            	<Option label="High level" value="4"/>                      -->
+<!--            	<Option label="Low level" value="5"/>                      -->
+<!--            	<Option label="Both levels" value="6"/>                      -->
+           </AD>
+           
+           <AD id="turnOn"
+            name="turnOn"
+            type="Boolean"
+            default="false"
+            cardinality="0"
+            required="false"
+            description="Turn on distance measurment">  
+          </AD>
     </OCD>
 
     <Designate pid="sensor.DistanceSensorConfigurable">

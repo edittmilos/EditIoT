@@ -11,4 +11,10 @@
               policy="static"
               unbind="unsetGPIOService"/>
    <property name="service.pid" type="String" value="sensor.DistanceSensorConfigurable"/>
+   <reference name="CloudPublisher"
+           policy="dynamic"
+           bind="setCloudPublisher"
+           unbind="unsetCloudPublisher"
+           cardinality="0..1"
+           interface="org.eclipse.kura.cloudconnection.publisher.CloudPublisher"/>
 </scr:component>

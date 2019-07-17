@@ -2,30 +2,43 @@ package sensor;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
+import org.eclipse.kura.KuraException;
+import org.eclipse.kura.cloudconnection.listener.CloudConnectionListener;
+import org.eclipse.kura.cloudconnection.listener.CloudDeliveryListener;
+import org.eclipse.kura.cloudconnection.message.KuraMessage;
+import org.eclipse.kura.cloudconnection.publisher.CloudPublisher;
+import org.eclipse.kura.cloudconnection.subscriber.listener.CloudSubscriberListener;
 import org.eclipse.kura.configuration.ConfigurableComponent;
 import org.eclipse.kura.gpio.GPIOService;
-import org.eclipse.kura.gpio.KuraClosedDeviceException;
 import org.eclipse.kura.gpio.KuraGPIODirection;
 import org.eclipse.kura.gpio.KuraGPIOMode;
 import org.eclipse.kura.gpio.KuraGPIOPin;
 import org.eclipse.kura.gpio.KuraGPIOTrigger;
-import org.eclipse.kura.gpio.KuraUnavailableDeviceException;
+import org.eclipse.kura.message.KuraPayload;
 import org.osgi.service.component.ComponentContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class DistanceSensorConfigurable implements ConfigurableComponent {
+public class DistanceSensorConfigurable
+		implements ConfigurableComponent, CloudConnectionListener, CloudDeliveryListener, CloudSubscriberListener {
 
 	private GPIOService gpioService;
+	private CloudPublisher cloudPublisher;
 	private List<KuraGPIOPin> openedPins = new ArrayList<>();
 
 	private static final Logger s_logger = LoggerFactory.getLogger(DistanceSensorConfigurable.class);
 	private static final String APP_ID = "edit.DistanceSensor";
 	private Map<String, Object> properties;
+
+	private ScheduledExecutorService executor;
 
 	public void setGPIOService(GPIOService gpioService) {
 		this.gpioService = gpioService;
@@ -35,8 +48,20 @@ public class DistanceSensorConfigurable implements ConfigurableComponent {
 		this.gpioService = null;
 	}
 
+	public void setCloudPublisher(CloudPublisher cloudPublisher) {
+		this.cloudPublisher = cloudPublisher;
+		this.cloudPublisher.registerCloudConnectionListener(DistanceSensorConfigurable.this);
+		this.cloudPublisher.registerCloudDeliveryListener(DistanceSensorConfigurable.this);
+	}
+
+	public void unsetCloudPublisher(CloudPublisher cloudPublisher) {
+		this.cloudPublisher.unregisterCloudConnectionListener(DistanceSensorConfigurable.this);
+		this.cloudPublisher.unregisterCloudDeliveryListener(DistanceSensorConfigurable.this);
+		this.cloudPublisher = null;
+	}
+
 	protected void activate(ComponentContext componentContext) {
-		s_logger.info("Bundle " + APP_ID + " has started!\nWORKING!\nWORKING\nWORKING");
+		s_logger.info("Bundle " + APP_ID + " has started!\nWORKING!\nWORKING!\nWORKING!");
 	}
 
 	protected void deactivate(ComponentContext componentContext) {
@@ -45,45 +70,58 @@ public class DistanceSensorConfigurable implements ConfigurableComponent {
 	}
 
 	public void updated(Map<String, Object> properties) {
-		
+
 		this.properties = properties;
 		releasePins();
 		openedPins.clear();
-		
-		
-		acquirePins();
-		getPins();
-		readDistance();
+
+		if (((Boolean) properties.get("turnOn")) == true) {
+			acquirePins();
+			getPins();
+			executor = Executors.newScheduledThreadPool(0);
+			executor.scheduleAtFixedRate(() -> readDistance(), 0, 1, TimeUnit.SECONDS);
+		} else
+			executor.shutdown();
 	}
-	
+
 	private void readDistance() {
-    	for(int i = 0; i < openedPins.size(); i++) {
-    		if(openedPins.get(i).getIndex() % 2 == 0) {
-    			KuraGPIOPin echo = openedPins.get(i);
-    			KuraGPIOPin trigger = openedPins.get(i + 1);
-    			try {
-    				trigger.setValue(false);
-					Thread.sleep(50);
-					trigger.setValue(true);
-					Thread.sleep(1);
-					trigger.setValue(false);
+		KuraPayload payload = new KuraPayload();
+		for (int i = 0; i < openedPins.size(); i++) {
+			if (openedPins.get(i).getIndex() % 2 == 0) {
+				KuraGPIOPin echo = openedPins.get(i);
+				KuraGPIOPin trigger = openedPins.get(i + 1);
+				try {
 					long start = 0;
 					long end = 0;
-					while(echo.getValue() == false) {
-						start = System.currentTimeMillis();
+					trigger.setValue(false);
+					Thread.sleep(2000);
+					trigger.setValue(true);
+					Thread.sleep((long) 0.001);
+					trigger.setValue(false);
+					while (echo.getValue() == false) {
+						start = System.nanoTime();
 					}
-					while(echo.getValue() == true) {
-						end = System.currentTimeMillis();
+					while (echo.getValue() == true) {
+						end = System.nanoTime();
 					}
 					long duration = end - start;
-					double distance = Math.ceil((duration / 1000.0) * 17150.0);
+					double distance = Math.ceil((duration * 17150.0) / 1000000000.0);
 					s_logger.info("Measured distance: " + distance);
-				} catch (KuraUnavailableDeviceException | KuraClosedDeviceException | IOException | InterruptedException e) {
+					payload.addMetric("Distance [cm]", String.valueOf(distance));
+				} catch (IOException | InterruptedException | KuraException e) {
 					e.printStackTrace();
 				}
-    		}
-    	}
-    }
+			}
+		}
+		if (!payload.metrics().isEmpty()) {
+			KuraMessage message = new KuraMessage(payload);
+			try {
+				cloudPublisher.publish(message);
+			} catch (KuraException e) {
+				e.printStackTrace();
+			}
+		}
+	}
 
 	private void acquirePins() {
 		if (this.gpioService != null) {
@@ -94,15 +132,22 @@ public class DistanceSensorConfigurable implements ConfigurableComponent {
 				s_logger.info("#{} - [{}]", e.getKey(), e.getValue());
 			}
 			s_logger.info("______________________________");
-
 		}
 	}
 
 	private void getPins() {
-		String[] pins = (String[]) this.properties.get("gpio.pins");
-		Integer[] directions = (Integer[]) this.properties.get("gpio.directions");
-		Integer[] modes = (Integer[]) this.properties.get("gpio.modes");
-		Integer[] triggers = (Integer[]) this.properties.get("gpio.triggers");
+		String[] pins1 = (String[]) this.properties.get("gpio.pins1");
+		String[] pins2 = (String[]) this.properties.get("gpio.pins2");
+		String[] pins = Arrays.copyOf(concat(pins1, pins2), pins1.length + pins2.length, String[].class);
+		Integer[] dirs1 = (Integer[]) this.properties.get("gpio.directions1");
+		Integer[] dirs2 = (Integer[]) this.properties.get("gpio.directions2");
+		Integer[] directions = Arrays.copyOf(concat(dirs1, dirs2), dirs1.length + dirs2.length, Integer[].class);
+		Integer[] modes1 = (Integer[]) this.properties.get("gpio.modes1");
+		Integer[] modes2 = (Integer[]) this.properties.get("gpio.modes2");
+		Integer[] modes = Arrays.copyOf(concat(modes1, modes2), modes1.length + modes2.length, Integer[].class);
+		Integer[] trigs1 = (Integer[]) this.properties.get("gpio.triggers1");
+		Integer[] trigs2 = (Integer[]) this.properties.get("gpio.triggers2");
+		Integer[] triggers = Arrays.copyOf(concat(trigs1, trigs2), trigs1.length + trigs2.length, Integer[].class);
 		for (int i = 0; i < pins.length; i++) {
 			try {
 				s_logger.info("Acquiring GPIO pin {} with params:", pins[i]);
@@ -138,6 +183,17 @@ public class DistanceSensorConfigurable implements ConfigurableComponent {
 			pin = this.gpioService.getPinByName(resource, pinDirection, pinMode, pinTrigger);
 		}
 		return pin;
+	}
+
+	private Object[] concat(Object[] array1, Object[] array2) {
+		Object[] array = new Object[array1.length + array2.length];
+		int i = 0;
+		for (; i < array1.length; i++)
+			array[i] = array1[i];
+		for (int j = 0; j < array2.length; j++) {
+			array[i + j] = array2[j];
+		}
+		return array;
 	}
 
 	private KuraGPIODirection getPinDirection(int direction) {
@@ -194,5 +250,35 @@ public class DistanceSensorConfigurable implements ConfigurableComponent {
 			}
 		});
 		openedPins.clear();
+	}
+
+	@Override
+	public void onMessageConfirmed(String arg0) {
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	public void onConnectionEstablished() {
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	public void onConnectionLost() {
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	public void onDisconnected() {
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	public void onMessageArrived(KuraMessage arg0) {
+		// TODO Auto-generated method stub
+
 	}
 }
