@@ -116,6 +116,24 @@
             required="false"
             description="Turn on distance measurment">  
           </AD>
+          
+          <AD id="containerDistanceTop"
+            name="containerDistanceTop"
+            type="Double"
+            default="0.0"
+            cardinality="0"
+            required="false"
+            description="Distance from sensor to top of the container">  
+          </AD>
+          
+          <AD id="containerDistanceBottom"
+            name="containerDistanceBottom"
+            type="Double"
+            default="0.0"
+            cardinality="0"
+            required="false"
+            description="Distance from sensor to bottom of the container">  
+          </AD>
     </OCD>
 
     <Designate pid="sensor.DistanceSensorConfigurable">

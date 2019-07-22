@@ -1,15 +1,15 @@
 #Deployment Plugin Project File
-#Wed Jul 17 16:40:20 CEST 2019
+#Mon Jul 22 13:51:40 CEST 2019
 build.ant.name=<.>/resources/dp/sensor_osgi_build.xml
 build.dp.file=<.>/resources/dp/sensor_osgi.dp
 build.location=
-bundles.0.bundle_path=/home/ucenik/Desktop/plugins/DistanceSensor_1.0.0.201907171640.jar
+bundles.0.bundle_path=/home/ucenik/Desktop/plugins/DistanceSensor_1.0.0.201907221351.jar
 bundles.0.customizer=false
 bundles.0.headers.count=0
 bundles.0.missing=false
-bundles.0.name=bundles/DistanceSensor_1.0.0.201907171640.jar
+bundles.0.name=bundles/DistanceSensor_1.0.0.201907221351.jar
 bundles.0.symbolic_name=DistanceSensor
-bundles.0.version=1.0.0.201907171640
+bundles.0.version=1.0.0.201907221351
 bundles.count=1
 certificates.count=0
 general.signbundles=false

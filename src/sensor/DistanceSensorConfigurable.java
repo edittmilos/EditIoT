@@ -3,6 +3,7 @@ package sensor;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -34,31 +35,13 @@ public class DistanceSensorConfigurable
 	private CloudPublisher cloudPublisher;
 	private List<KuraGPIOPin> openedPins = new ArrayList<>();
 
+	private double containerTop, containerBottom;
+
 	private static final Logger s_logger = LoggerFactory.getLogger(DistanceSensorConfigurable.class);
 	private static final String APP_ID = "edit.DistanceSensor";
 	private Map<String, Object> properties;
 
 	private ScheduledExecutorService executor;
-
-	public void setGPIOService(GPIOService gpioService) {
-		this.gpioService = gpioService;
-	}
-
-	public void unsetGPIOService(GPIOService gpioService) {
-		this.gpioService = null;
-	}
-
-	public void setCloudPublisher(CloudPublisher cloudPublisher) {
-		this.cloudPublisher = cloudPublisher;
-		this.cloudPublisher.registerCloudConnectionListener(DistanceSensorConfigurable.this);
-		this.cloudPublisher.registerCloudDeliveryListener(DistanceSensorConfigurable.this);
-	}
-
-	public void unsetCloudPublisher(CloudPublisher cloudPublisher) {
-		this.cloudPublisher.unregisterCloudConnectionListener(DistanceSensorConfigurable.this);
-		this.cloudPublisher.unregisterCloudDeliveryListener(DistanceSensorConfigurable.this);
-		this.cloudPublisher = null;
-	}
 
 	protected void activate(ComponentContext componentContext) {
 		s_logger.info("Bundle " + APP_ID + " has started!\nWORKING!\nWORKING!\nWORKING!");
@@ -70,8 +53,9 @@ public class DistanceSensorConfigurable
 	}
 
 	public void updated(Map<String, Object> properties) {
-
 		this.properties = properties;
+		containerTop = (double) properties.get("containerDistanceTop");
+		containerBottom = (double) properties.get("containerDistanceBottom");
 		releasePins();
 		openedPins.clear();
 
@@ -79,60 +63,63 @@ public class DistanceSensorConfigurable
 			acquirePins();
 			getPins();
 			executor = Executors.newScheduledThreadPool(0);
-			executor.scheduleAtFixedRate(() -> readDistance(), 0, 1, TimeUnit.SECONDS);
+			executor.scheduleAtFixedRate(() -> readDistance(), 0, 2, TimeUnit.SECONDS);
 		} else
-			executor.shutdown();
+			executor.shutdownNow();
 	}
 
 	private void readDistance() {
-		KuraPayload payload = new KuraPayload();
-		for (int i = 0; i < openedPins.size(); i++) {
+		List<Double> values = Collections.synchronizedList(new ArrayList<>());
+		for (int i = 0; i < openedPins.size(); i++)
 			if (openedPins.get(i).getIndex() % 2 == 0) {
+
 				KuraGPIOPin echo = openedPins.get(i);
 				KuraGPIOPin trigger = openedPins.get(i + 1);
-				try {
-					long start = 0;
-					long end = 0;
-					trigger.setValue(false);
-					Thread.sleep(2000);
-					trigger.setValue(true);
-					Thread.sleep((long) 0.001);
-					trigger.setValue(false);
-					while (echo.getValue() == false) {
-						start = System.nanoTime();
-					}
-					while (echo.getValue() == true) {
-						end = System.nanoTime();
-					}
-					long duration = end - start;
-					double distance = Math.ceil((duration * 17150.0) / 1000000000.0);
-					s_logger.info("Measured distance: " + distance);
-					payload.addMetric("Distance [cm]", String.valueOf(distance));
-				} catch (IOException | InterruptedException | KuraException e) {
-					e.printStackTrace();
-				}
+				Reader reader = new Reader(i, echo, trigger, values, s_logger);
+				reader.start();
 			}
-		}
-		if (!payload.metrics().isEmpty()) {
-			KuraMessage message = new KuraMessage(payload);
+		int i = 0;
+		while (values.size() < 6 && i < 20) {
 			try {
-				cloudPublisher.publish(message);
-			} catch (KuraException e) {
+				i++;
+				Thread.sleep(50);
+			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
 		}
+		s_logger.info("Values size:" + values.size() + "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+		KuraPayload payload = new KuraPayload();
+		payload.addMetric("Distance", getFulness(values));
+		s_logger.info("Measured distance: " + getFulness(values));
+		if (!payload.metrics().isEmpty()) {
+			KuraMessage message = new KuraMessage(payload);
+//			try {
+//				cloudPublisher.publish(message);
+//			} catch (KuraException e) {
+//				e.printStackTrace();
+//			}
+		}
 	}
 
-	private void acquirePins() {
-		if (this.gpioService != null) {
-			s_logger.info("______________________________");
-			s_logger.info("Available GPIOs on the system:");
-			Map<Integer, String> gpios = this.gpioService.getAvailablePins();
-			for (Entry<Integer, String> e : gpios.entrySet()) {
-				s_logger.info("#{} - [{}]", e.getKey(), e.getValue());
-			}
-			s_logger.info("______________________________");
+	public String getFulness(List<Double> values) {
+		double containerHeigth = containerBottom - containerTop;
+		for (Double value : values) {
+			double distance = value - containerTop;
+			if (distance > 0.2 * containerHeigth)
+				return "Half-full";
 		}
+		return "Full";
+	}
+
+	private Object[] concat(Object[] array1, Object[] array2) {
+		Object[] array = new Object[array1.length + array2.length];
+		int i = 0;
+		for (; i < array1.length; i++)
+			array[i] = array1[i];
+		for (int j = 0; j < array2.length; j++) {
+			array[i + j] = array2[j];
+		}
+		return array;
 	}
 
 	private void getPins() {
@@ -170,7 +157,19 @@ public class DistanceSensorConfigurable
 			}
 		}
 	}
-
+	
+	private void acquirePins() {
+		if (this.gpioService != null) {
+			s_logger.info("______________________________");
+			s_logger.info("Available GPIOs on the system:");
+			Map<Integer, String> gpios = this.gpioService.getAvailablePins();
+			for (Entry<Integer, String> e : gpios.entrySet()) {
+				s_logger.info("#{} - [{}]", e.getKey(), e.getValue());
+			}
+			s_logger.info("______________________________");
+		}
+	}
+	
 	private KuraGPIOPin getPin(String resource, KuraGPIODirection pinDirection, KuraGPIOMode pinMode,
 			KuraGPIOTrigger pinTrigger) {
 		KuraGPIOPin pin = null;
@@ -184,16 +183,38 @@ public class DistanceSensorConfigurable
 		}
 		return pin;
 	}
+	
+	private void releasePins() {
+		s_logger.warn("CLOSING PINSSSS\n\n");
+		openedPins.forEach(pin -> {
+			try {
+				s_logger.warn("Closing GPIO pin {}", pin);
+				pin.close();
+			} catch (IOException e) {
+				s_logger.warn("Cannot close pin!");
+			}
+		});
+		openedPins.clear();
+	}
+	
+	public void setGPIOService(GPIOService gpioService) {
+		this.gpioService = gpioService;
+	}
 
-	private Object[] concat(Object[] array1, Object[] array2) {
-		Object[] array = new Object[array1.length + array2.length];
-		int i = 0;
-		for (; i < array1.length; i++)
-			array[i] = array1[i];
-		for (int j = 0; j < array2.length; j++) {
-			array[i + j] = array2[j];
-		}
-		return array;
+	public void unsetGPIOService(GPIOService gpioService) {
+		this.gpioService = null;
+	}
+
+	public void setCloudPublisher(CloudPublisher cloudPublisher) {
+		this.cloudPublisher = cloudPublisher;
+		this.cloudPublisher.registerCloudConnectionListener(DistanceSensorConfigurable.this);
+		this.cloudPublisher.registerCloudDeliveryListener(DistanceSensorConfigurable.this);
+	}
+
+	public void unsetCloudPublisher(CloudPublisher cloudPublisher) {
+		this.cloudPublisher.unregisterCloudConnectionListener(DistanceSensorConfigurable.this);
+		this.cloudPublisher.unregisterCloudDeliveryListener(DistanceSensorConfigurable.this);
+		this.cloudPublisher = null;
 	}
 
 	private KuraGPIODirection getPinDirection(int direction) {
@@ -239,46 +260,23 @@ public class DistanceSensorConfigurable
 		}
 	}
 
-	private void releasePins() {
-		s_logger.warn("CLOSING PINSSSS\n\n");
-		openedPins.forEach(pin -> {
-			try {
-				s_logger.warn("Closing GPIO pin {}", pin);
-				pin.close();
-			} catch (IOException e) {
-				s_logger.warn("Cannot close pin!");
-			}
-		});
-		openedPins.clear();
-	}
-
 	@Override
 	public void onMessageConfirmed(String arg0) {
-		// TODO Auto-generated method stub
-
 	}
 
 	@Override
 	public void onConnectionEstablished() {
-		// TODO Auto-generated method stub
-
 	}
 
 	@Override
 	public void onConnectionLost() {
-		// TODO Auto-generated method stub
-
 	}
 
 	@Override
 	public void onDisconnected() {
-		// TODO Auto-generated method stub
-
 	}
 
 	@Override
 	public void onMessageArrived(KuraMessage arg0) {
-		// TODO Auto-generated method stub
-
 	}
 }
