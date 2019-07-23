@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -49,6 +50,7 @@ public class DistanceSensorConfigurable
 
 	protected void deactivate(ComponentContext componentContext) {
 		releasePins();
+		executor.shutdownNow();
 		s_logger.info("Bundle " + APP_ID + " has stopped!");
 	}
 
@@ -70,16 +72,17 @@ public class DistanceSensorConfigurable
 
 	private void readDistance() {
 		List<Double> values = Collections.synchronizedList(new ArrayList<>());
+		Map<String, Double> valuesSeparate = Collections.synchronizedMap(new HashMap<>());
 		for (int i = 0; i < openedPins.size(); i++)
 			if (openedPins.get(i).getIndex() % 2 == 0) {
 
 				KuraGPIOPin echo = openedPins.get(i);
 				KuraGPIOPin trigger = openedPins.get(i + 1);
-				Reader reader = new Reader(i, echo, trigger, values, s_logger);
+				Reader reader = new Reader(i, echo, trigger,valuesSeparate, values, s_logger);
 				reader.start();
 			}
 		int i = 0;
-		while (values.size() < 6 && i < 20) {
+		while (values.size() < 6 && valuesSeparate.size() < 6 && i < 20) {
 			try {
 				i++;
 				Thread.sleep(50);
@@ -90,14 +93,16 @@ public class DistanceSensorConfigurable
 		s_logger.info("Values size:" + values.size() + "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 		KuraPayload payload = new KuraPayload();
 		payload.addMetric("Distance", getFulness(values));
-		s_logger.info("Measured distance: " + getFulness(values));
+		s_logger.info("Container fullnes: " + getFulness(values));
+		s_logger.info("HashMap size: " + valuesSeparate.size() + "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+		s_logger.info("Container fullnes seperate: " + getFulnessSeparate(valuesSeparate));
 		if (!payload.metrics().isEmpty()) {
 			KuraMessage message = new KuraMessage(payload);
-//			try {
-//				cloudPublisher.publish(message);
-//			} catch (KuraException e) {
-//				e.printStackTrace();
-//			}
+			try {
+				cloudPublisher.publish(message);
+			} catch (KuraException e) {
+				e.printStackTrace();
+			}
 		}
 	}
 
@@ -105,10 +110,42 @@ public class DistanceSensorConfigurable
 		double containerHeigth = containerBottom - containerTop;
 		for (Double value : values) {
 			double distance = value - containerTop;
-			if (distance > 0.2 * containerHeigth)
+			if (distance > 0.25 * containerHeigth)
 				return "Half-full";
 		}
 		return "Full";
+	}
+	
+	public String getFulnessSeparate(Map<String, Double> values) {
+		String result = "";
+		double containerHeigth = containerBottom - containerTop;
+		for(Entry<String, Double> entry: values.entrySet()) {
+			switch(Integer.valueOf(entry.getKey())) {
+			case 0:
+				result += "TR:";
+				break;
+			case 10:
+				result += "TL:";
+				break;
+			case 8:
+				result += "CR:";
+				break;
+			case 4:
+				result += "CL:";
+				break;
+			case 6:
+				result += "BR:";
+				break;
+			case 2:
+				result += "BL:";
+				break;
+			}
+			if(entry.getValue() - containerTop > 0.25 * containerHeigth)
+				result += "Half-full";
+			else result += "Full";
+			result += "|";
+		}
+		return result;
 	}
 
 	private Object[] concat(Object[] array1, Object[] array2) {
