@@ -71,18 +71,17 @@ public class DistanceSensorConfigurable
 	}
 
 	private void readDistance() {
-		List<Double> values = Collections.synchronizedList(new ArrayList<>());
-		Map<String, Double> valuesSeparate = Collections.synchronizedMap(new HashMap<>());
+		Map<String, Double> values = Collections.synchronizedMap(new HashMap<>());
 		for (int i = 0; i < openedPins.size(); i++)
 			if (openedPins.get(i).getIndex() % 2 == 0) {
 
 				KuraGPIOPin echo = openedPins.get(i);
 				KuraGPIOPin trigger = openedPins.get(i + 1);
-				Reader reader = new Reader(i, echo, trigger,valuesSeparate, values, s_logger);
+				Reader reader = new Reader(i, echo, trigger, values, s_logger);
 				reader.start();
 			}
 		int i = 0;
-		while (values.size() < 6 && valuesSeparate.size() < 6 && i < 20) {
+		while (values.size() < 6 && i < 20) {
 			try {
 				i++;
 				Thread.sleep(50);
@@ -90,12 +89,9 @@ public class DistanceSensorConfigurable
 				e.printStackTrace();
 			}
 		}
-		s_logger.info("Values size:" + values.size() + "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 		KuraPayload payload = new KuraPayload();
-		payload.addMetric("Distance", getFulness(values));
-		s_logger.info("Container fullnes: " + getFulness(values));
-		s_logger.info("HashMap size: " + valuesSeparate.size() + "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-		s_logger.info("Container fullnes seperate: " + getFulnessSeparate(valuesSeparate));
+		payload.addMetric("Distance", getFullness(values));
+		s_logger.info("Container fullnes seperate: " + getFullness(values));
 		if (!payload.metrics().isEmpty()) {
 			KuraMessage message = new KuraMessage(payload);
 			try {
@@ -105,18 +101,8 @@ public class DistanceSensorConfigurable
 			}
 		}
 	}
-
-	public String getFulness(List<Double> values) {
-		double containerHeigth = containerBottom - containerTop;
-		for (Double value : values) {
-			double distance = value - containerTop;
-			if (distance > 0.25 * containerHeigth)
-				return "Half-full";
-		}
-		return "Full";
-	}
 	
-	public String getFulnessSeparate(Map<String, Double> values) {
+	public String getFullness(Map<String, Double> values) {
 		String result = "";
 		double containerHeigth = containerBottom - containerTop;
 		for(Entry<String, Double> entry: values.entrySet()) {
@@ -143,9 +129,9 @@ public class DistanceSensorConfigurable
 			if(entry.getValue() - containerTop > 0.25 * containerHeigth)
 				result += "Half-full";
 			else result += "Full";
-			result += "|";
+			result += ";";
 		}
-		return result;
+		return result.substring(0, result.length() - 1);
 	}
 
 	private Object[] concat(Object[] array1, Object[] array2) {
